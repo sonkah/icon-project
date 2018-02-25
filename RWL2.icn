@@ -1,0 +1,180 @@
+
+#Anna Baran - RWL
+
+procedure main()
+	while w := read() do {
+
+		if is_correct(w) == "0" then {
+			write("ERROR")
+			exit(1)
+		}
+		onp := ONP(w)
+		#write(onp)
+		TC := []
+		TC := gen_carnaugh(onp)#wypwłniam tablice Carnaugha
+		
+		#liczniki które sprawdzają ile razy wyrażenia w tabeli C. ewaluują się do 0 albo 1
+		licz1 :=0
+		licz0 :=0
+		every x := val(onp, gen(*(onp**&lcase), *(onp**"T"), *(onp**"F"))) do {
+			#write(x)
+			if x = 0 then licz0 := licz0 + 1
+			if x = 1 then licz1 := licz1 + 1
+		}
+		#jeżeli po uproszczeniu wychodzą same 1 to True
+		if (licz1 ~= 0 & licz0 = 0) then {
+			write("T")
+		}
+		#jeżeli po uproszczeniu wychodzą same 1 to False
+		else if (licz1 = 0 & licz0 ~= 0) then {
+			write("F")
+		}
+		#jeżeli licz1 i licz0 różne od 0 to wyrażenie nie ewaluuje się do
+		#jednej zmiennej logicznej, trzeba spróbować uprościć
+		else{
+			simplify(w, TC)
+		}
+	}
+end
+
+#sprawdzanie czy poprawne wyrażenie
+procedure is_correct(we)
+	w := ""
+	#usuwanie spacji
+	every a := !we do
+	 	if (a ~== " ") then w := w || a
+	#sprawdzanie poprawności zapisu
+	if w ? {W() & pos(0)} then return "1"
+	else return "0"
+end
+
+#procedury z laboratorium
+procedure W()
+	suspend S() | (S() || ="|" || W())
+end
+procedure S()
+	suspend C() | (C() || ="&" || S())
+end
+procedure C()
+	suspend D() | (D() || =">" || C())
+end
+procedure D()
+	suspend I() | (I()||="^"||D())
+end
+procedure I() #pozostałe poprawne znaki (litery, false/true, " ", "~~", nawiasy)
+	suspend =(!&lcase) | (=!"FT") | (="~" || W()) | (="(" || W() || =")")
+end
+
+# odwrotna notacja polska - labolatorium
+procedure ONP(w)
+	while w ?:= 2(="(", tab(bal(")")), pos(-1))
+	w ? every p := bal('>')
+	if \p then return ONP(w[1:p]) || ONP(w[p+1:0]) || w[p]
+	w ? every p := bal(!'&|')
+	if \p then return ONP(w[1:p]) || ONP(w[p+1:0]) || w[p]
+	w ? every p := bal("^")
+	if \p then return ONP(w[1:p]) || ONP(w[p+1:0]) || w[p]
+	w ? every p := bal("~")
+	if \p then return ONP(w[1:p]) || ONP(w[p+1:0]) || w[p]
+	#w ? every p := bal(" ") #usuwanie spacji
+	#if \p then return ONP(w[1:p]) || ONP(w[p+1:0])
+	return w
+end
+
+# do czego ewaluuje się wyrażenie logiczne w dla danych arg
+procedure val(w, arg)
+	w := map(w, cset(w)**(&lcase||"TF"), arg)
+	#write(w ||"KK")
+	s := []
+	every e := !w do
+		if e == !"01" then push(s, e)
+		else case e of {
+			"&": push(s, iand(pop(s), pop(s))) #and dla dwóch zdjętych ze stosu wartości
+			"|": push(s, ior(pop(s), pop(s)))
+			">": push(s, ior(pop(s), 1-pop(s))) #11-1  10-1  01-0  00-1
+			"^": push(s, ixor(pop(s), pop(s)))
+			"~": push(s, 1-pop(s))
+		}
+	return pop(s)
+end
+
+#generowane uproszczonych wyrażeń i porównywanie ich wartości z wyr. wejściowym
+procedure simplify(w, TC)
+	#zaczynamy sprawdzanie do ciągów długości 1
+	every i := 1 to (*w)-1 do {
+		#generujemy wyrażenie, sprawdzamy czy jest poprawne
+		every expr := gen_expr(i, w) do {
+			if(is_correct(expr) == "1") then {
+				#jeżeli jest poprawne sprawdzamy czy ich tablice Carnaugha są takie same
+				onp := ONP(expr)
+				NTC := gen_carnaugh(onp)
+				#write(onp)
+				if(equals(TC, NTC) == "T") then {
+					write(expr)
+					#write_table(NTC)
+					return "1"
+				}
+			}
+		}
+	}
+
+	write(w)
+	return "0"
+end
+
+#generowanie tabeli Carnaugha
+procedure gen_carnaugh(onp)
+	l := []
+	every v := gen(*(onp**&lcase), *(onp**"T"), *(onp**"F")) do {
+		put(l, v)
+		put(l, val(onp,v))
+	}
+	return l
+end
+
+
+
+#generowanie ciągów binarnych
+procedure gen(n,t,f)
+	if (n=0 & t=0 & f=0) then suspend ""
+	else if (t=0&f=0) then suspend !"01" || gen(n-1, t, f) #dla zmiennych 0 lub 1
+	else if (t~=0) then suspend "1" || gen(n, t-1, f) #dla True zawsze 1
+	else if (f~=0) then suspend "0" || gen(n, t, f-1) #dla False zawsze 0
+end
+
+#generowanie wyrażen, które później będą porównywane z wejściowym
+procedure gen_expr(n, w)
+	letters := w**&lcase
+	chars := (letters || "~^&()>|")
+	if n > 0 then suspend !chars || gen_expr(n-1, w)
+	else suspend ""
+end
+
+#wypisywanie tabeli Carnaugha
+procedure write_table(l2)
+	writes("[")
+  every i := 1 to *l2 do writes(l2[i]," ")
+	writes("]")
+  write(" ")
+end
+
+#porównywanie wyrażeń
+procedure equals(L1, L2)
+	 licz := 0
+	if *L1 === *L2 then
+		every i := 1 to *L1 do{
+			if L1[i] ~=== L2[i] then break
+			else licz +:= 1
+		}
+		if licz === *L1 then return "T"
+		else return "F"
+end
+#
+#
+#
+#
+#
+#
+#
+#
+#
